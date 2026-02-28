@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Focus</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@400;500;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.06);
+    --text: #e8e8ed;
+    --text-dim: rgba(255,255,255,0.35);
+    --accent: #6c63ff;
+    --accent-glow: rgba(108,99,255,0.3);
+    --red: #ff4444;
+    --red-glow: rgba(255,68,68,0.4);
+    --green: #4ade80;
+    --green-glow: rgba(74,222,128,0.3);
+    --yellow: #ffaa00;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ====== LAYOUT ====== */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    height: 100vh;
+  }
+
+  .main-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .side-panel {
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ====== SIDE PANEL — SCHEDULE + DUMP ====== */
+  .side-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .side-tabs {
+    display: flex;
+    gap: 4px;
+  }
+
+  .side-tab {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+
+  .side-tab.active {
+    background: rgba(108,99,255,0.15);
+    color: var(--accent);
+  }
+
+  .side-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+  }
+
+  .side-content::-webkit-scrollbar { width: 4px; }
+  .side-content::-webkit-scrollbar-track { background: transparent; }
+  .side-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+  /* Schedule list */
+  .schedule-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    transition: background 0.15s;
+  }
+
+  .schedule-item:hover { background: rgba(255,255,255,0.03); }
+  .schedule-item.done { opacity: 0.3; text-decoration: line-through; }
+  .schedule-item.active { background: rgba(108,99,255,0.1); border-left: 3px solid var(--accent); }
+
+  .schedule-time {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 42px;
+  }
+
+  .schedule-name {
+    flex: 1;
+    color: var(--text);
+  }
+
+  /* Dump list */
+  .dump-input-row {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .dump-input {
+    flex: 1;
+    padding: 8px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .dump-input:focus { border-color: var(--accent); }
+  .dump-input::placeholder { color: rgba(255,255,255,0.15); }
+
+  .dump-add-btn {
+    padding: 8px 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .dump-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    font-size: 13px;
+    cursor: grab;
+    transition: background 0.15s;
+  }
+
+  .dump-item:hover { background: rgba(255,255,255,0.03); }
+
+  .dump-item .drag-handle {
+    color: var(--text-dim);
+    font-size: 10px;
+    cursor: grab;
+  }
+
+  .dump-item .dump-text { flex: 1; }
+
+  .dump-item .dump-to-schedule {
+    padding: 2px 8px;
+    background: rgba(108,99,255,0.1);
+    border: 1px solid rgba(108,99,255,0.2);
+    border-radius: 4px;
+    color: var(--accent);
+    font-size: 10px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .dump-item:hover .dump-to-schedule { opacity: 1; }
+
+  .dump-item .dump-delete {
+    padding: 2px 6px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 14px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+
+  .dump-item:hover .dump-delete { opacity: 1; }
+  .dump-item .dump-delete:hover { color: var(--red); }
+
+  /* ====== INPUT SCREEN ====== */
+  #input-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+  }
+
+  #input-screen h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 24px;
+  }
+
+  .format-hint {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.8;
+    width: 100%;
+    max-width: 500px;
+  }
+
+  .format-hint code {
+    color: var(--accent);
+    background: rgba(108,99,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  textarea {
+    width: 100%;
+    max-width: 500px;
+    height: 260px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 2;
+    resize: none;
+    outline: none;
+  }
+
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: rgba(255,255,255,0.12); }
+
+  .start-btn {
+    width: 100%;
+    max-width: 500px;
+    margin-top: 12px;
+    padding: 14px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .start-btn:hover { box-shadow: 0 8px 30px var(--accent-glow); }
+
+  .error-msg {
+    color: var(--red);
+    font-size: 12px;
+    margin-top: 8px;
+    display: none;
+    max-width: 500px;
+  }
+
+  /* ====== TIMER SCREEN ====== */
+  #timer-screen { display: none; width: 100%; }
+
+  .current-task-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  .current-task-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 32px;
+    text-align: center;
+  }
+
+  .timer-display {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 80px;
+    font-weight: 700;
+    letter-spacing: -3px;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 8px;
+  }
+
+  .timer-display.warning { color: var(--yellow); }
+  .timer-display.critical { color: var(--red); }
+
+  .time-range {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-bottom: 32px;
+  }
+
+  .progress-bar-container {
+    width: 100%;
+    max-width: 400px;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 2px;
+    margin-bottom: 32px;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 1s linear;
+  }
+
+  .timer-buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  .timer-btn {
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+  }
+
+  .timer-btn:hover { transform: translateY(-1px); }
+
+  .timer-btn-extend {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+  }
+
+  .timer-btn-extend:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .timer-btn-done {
+    background: rgba(74,222,128,0.1);
+    border: 1px solid rgba(74,222,128,0.2);
+    color: var(--green);
+  }
+
+  .timer-btn-done:hover { box-shadow: 0 4px 20px var(--green-glow); }
+
+  /* ====== ALARM OVERLAY ====== */
+  #alarm-screen {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 10000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  #alarm-screen.flash-red { background: var(--red); }
+  #alarm-screen.flash-dark { background: #1a0000; }
+
+  .alarm-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 44px;
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  .alarm-completed-task {
+    font-size: 16px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 32px;
+  }
+
+  .alarm-next { font-size: 18px; color: rgba(255,255,255,0.5); margin-bottom: 6px; }
+
+  .alarm-next-task {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    margin-bottom: 40px;
+    text-align: center;
+  }
+
+  .ack-prompt {
+    font-size: 18px;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 20px;
+  }
+
+  .ack-btn {
+    padding: 18px 40px;
+    background: white;
+    color: #0a0a0f;
+    border: none;
+    border-radius: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    animation: ackPulse 1.5s ease infinite;
+  }
+
+  @keyframes ackPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+    50% { box-shadow: 0 0 0 12px rgba(255,255,255,0); }
+  }
+
+  .ack-btn:hover { transform: scale(1.03); }
+
+  /* Breathing */
+  .breathing-container {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .breath-instruction {
+    font-size: 22px;
+    font-weight: 500;
+    color: white;
+    margin-bottom: 20px;
+    min-height: 32px;
+    text-align: center;
+  }
+
+  .breath-circle-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin-bottom: 20px;
+  }
+
+  .breath-circle {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+    border: 3px solid rgba(255,255,255,0.4);
+    transition: transform 4s ease-in-out, background 4s ease-in-out, border-color 0.3s;
+  }
+
+  .breath-circle.inhale {
+    transform: scale(1.4);
+    background: rgba(74,222,128,0.2);
+    border-color: var(--green);
+  }
+
+  .breath-circle.exhale {
+    transform: scale(0.7);
+    background: rgba(108,99,255,0.2);
+    border-color: var(--accent);
+  }
+
+  .breath-count {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%,-50%);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 40px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .breath-label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .skip-btn {
+    position: absolute;
+    bottom: 30px; right: 30px;
+    padding: 8px 14px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: rgba(255,255,255,0.3);
+    font-size: 11px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    display: none;
+  }
+
+  /* ====== DONE SCREEN ====== */
+  #done-screen {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .done-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 44px;
+    font-weight: 700;
+    margin-bottom: 10px;
+  }
+
+  .done-sub { color: var(--text-dim); font-size: 16px; margin-bottom: 28px; }
+
+  .done-stats { display: flex; gap: 32px; }
+
+  .done-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+  }
+
+  .done-stat-label {
+    font-size: 11px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-top: 4px;
+    text-align: center;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- MAIN PANEL -->
+  <div class="main-panel">
+
+    <!-- INPUT -->
+    <div id="input-screen">
+      <h1>Focus</h1>
+      <div class="subtitle">Structured blocks with forced transitions</div>
+      <div class="format-hint">
+        <code>1700 Math hw</code> — end = next line's start<br>
+        <code>1700-1800 Math hw</code> — explicit range<br>
+        Mix both freely. Last task defaults to 30 min.
+      </div>
+      <textarea id="schedule-input" placeholder="1700 Clean up room
+1730 Swim reflections
+1740 Math hw
+1830 Breathe
+1837 Dinner" spellcheck="false"></textarea>
+      <button class="start-btn" onclick="startSchedule()">Start Schedule</button>
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+
+    <!-- TIMER -->
+    <div id="timer-screen">
+      <div class="current-task-label">Current Task</div>
+      <div class="current-task-name" id="task-name">—</div>
+      <div class="timer-display" id="timer-display">00:00</div>
+      <div class="time-range" id="time-range">00:00 → 00:00</div>
+      <div class="progress-bar-container">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+      <div class="timer-buttons">
+        <button class="timer-btn timer-btn-extend" id="extend-btn" onclick="extendTask()">+10 min</button>
+        <button class="timer-btn timer-btn-done" id="done-early-btn" onclick="doneEarly()">Done early ✓</button>
+      </div>
+    </div>
+
+    <!-- DONE -->
+    <div id="done-screen">
+      <div class="done-text">Done.</div>
+      <div class="done-sub">Every task completed. You showed up.</div>
+      <div class="done-stats">
+        <div>
+          <div class="done-stat-value" id="done-tasks">0</div>
+          <div class="done-stat-label">Tasks</div>
+        </div>
+        <div>
+          <div class="done-stat-value" id="done-minutes">0</div>
+          <div class="done-stat-label">Minutes</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side-panel">
+    <div class="side-header">
+      <div class="side-tabs">
+        <button class="side-tab active" onclick="switchTab('schedule')">Schedule</button>
+        <button class="side-tab" onclick="switchTab('dump')">Dump</button>
+      </div>
+    </div>
+
+    <!-- Schedule Tab -->
+    <div class="side-content" id="schedule-tab">
+      <div id="schedule-list" style="color:var(--text-dim);font-size:13px;padding:8px;">
+        Enter a schedule to begin.
+      </div>
+    </div>
+
+    <!-- Dump Tab -->
+    <div class="side-content hidden" id="dump-tab">
+      <div class="dump-input-row" style="padding:0 0 12px 0; border-bottom:1px solid var(--border); margin-bottom:8px;">
+        <input class="dump-input" id="dump-input" placeholder="Quick dump — hit Enter" onkeydown="if(event.key==='Enter')addDump()">
+        <button class="dump-add-btn" onclick="addDump()">+</button>
+      </div>
+      <div id="dump-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ALARM OVERLAY -->
+<div id="alarm-screen">
+  <div class="alarm-text" id="alarm-text">TIME'S UP</div>
+  <div class="alarm-completed-task" id="alarm-completed-task"></div>
+  <div class="alarm-next" id="alarm-next-label"></div>
+  <div class="alarm-next-task" id="alarm-next-task"></div>
+
+  <div id="acknowledge-container" style="text-align:center;">
+    <div class="ack-prompt" id="ack-prompt">Stop. You are here.</div>
+    <button class="ack-btn" id="ack-btn">I'm here — stop alarm</button>
+  </div>
+
+  <div class="breathing-container" id="breathing-container">
+    <div class="breath-instruction" id="breath-instruction">Get ready...</div>
+    <div class="breath-circle-wrap">
+      <div class="breath-circle" id="breath-circle"></div>
+      <div class="breath-count" id="breath-count">3</div>
+    </div>
+    <div class="breath-label">mindful breaths to transition</div>
+  </div>
+
+  <button class="skip-btn" id="skip-btn">Skip (emergency)</button>
+</div>
+
+<script>
+  // ====== STATE ======
+  let tasks = [];
+  let currentTaskIndex = -1;
+  let timerInterval = null;
+  let alarmInterval = null;
+  let alarmSoundInterval = null;
+  let audioCtx = null;
+  let extendedThisTask = false;
+  let dumpItems = JSON.parse(localStorage.getItem('focusDump') || '[]');
+
+  // ====== BROADCAST CURRENT TASK (for search guardian) ======
+  function broadcastTask() {
+    const task = currentTaskIndex >= 0 && currentTaskIndex < tasks.length ? tasks[currentTaskIndex] : null;
+    const data = task ? { name: task.name, startStr: task.startStr, endStr: task.endStr } : null;
+    localStorage.setItem('focusCurrentTask', JSON.stringify(data));
+  }
+
+  // ====== TABS ======
+  function switchTab(tab) {
+    document.querySelectorAll('.side-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('schedule-tab').classList.toggle('hidden', tab !== 'schedule');
+    document.getElementById('dump-tab').classList.toggle('hidden', tab !== 'dump');
+    event.target.classList.add('active');
+    if (tab === 'dump') document.getElementById('dump-input').focus();
+  }
+
+  // ====== DUMP LIST ======
+  function renderDump() {
+    const list = document.getElementById('dump-list');
+    if (dumpItems.length === 0) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px;">Brain dump goes here. Get it out of your head.</div>';
+      return;
+    }
+    list.innerHTML = dumpItems.map((item, i) => `
+      <div class="dump-item">
+        <span class="drag-handle">⠿</span>
+        <span class="dump-text">${escapeHtml(item)}</span>
+        <button class="dump-to-schedule" onclick="dumpToSchedule(${i})">→ sched</button>
+        <button class="dump-delete" onclick="removeDump(${i})">×</button>
+      </div>
+    `).join('');
+  }
+
+  function addDump() {
+    const input = document.getElementById('dump-input');
+    const text = input.value.trim();
+    if (!text) return;
+    dumpItems.push(text);
+    localStorage.setItem('focusDump', JSON.stringify(dumpItems));
+    input.value = '';
+    renderDump();
+  }
+
+  function removeDump(i) {
+    dumpItems.splice(i, 1);
+    localStorage.setItem('focusDump', JSON.stringify(dumpItems));
+    renderDump();
+  }
+
+  function dumpToSchedule(i) {
+    const text = dumpItems[i];
+    const ta = document.getElementById('schedule-input');
+    ta.value = ta.value.trim() + '\n' + text;
+    removeDump(i);
+    switchTab('schedule');
+    document.querySelectorAll('.side-tab')[0].classList.add('active');
+    document.querySelectorAll('.side-tab')[1].classList.remove('active');
+  }
+
+  function escapeHtml(t) {
+    const d = document.createElement('div');
+    d.textContent = t;
+    return d.innerHTML;
+  }
+
+  // ====== PARSE ======
+  function parseSchedule(text) {
+    const lines = text.trim().split('\n').filter(l => l.trim());
+    const errEl = document.getElementById('error-msg');
+    errEl.style.display = 'none';
+    const raw = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      const rangeMatch = line.match(/^(\d{3,4})\s*[-–]\s*(\d{3,4})\s+(.+)$/);
+      if (rangeMatch) {
+        raw.push({ startStr: rangeMatch[1].padStart(4,'0'), endStr: rangeMatch[2].padStart(4,'0'), name: rangeMatch[3].trim() });
+        continue;
+      }
+      const startMatch = line.match(/^(\d{3,4})\s+(.+)$/);
+      if (startMatch) {
+        raw.push({ startStr: startMatch[1].padStart(4,'0'), endStr: null, name: startMatch[2].trim() });
+        continue;
+      }
+      errEl.textContent = `Line ${i+1}: "${line}"`;
+      errEl.style.display = 'block';
+      return null;
+    }
+
+    for (let i = 0; i < raw.length; i++) {
+      if (!raw[i].endStr) {
+        if (i + 1 < raw.length) {
+          raw[i].endStr = raw[i+1].startStr;
+        } else {
+          const s = raw[i].startStr;
+          const h = parseInt(s.slice(0,2)), m = parseInt(s.slice(2,4));
+          const em = m + 30, eh = h + Math.floor(em/60);
+          raw[i].endStr = String(eh%24).padStart(2,'0') + String(em%60).padStart(2,'0');
+        }
+      }
+    }
+
+    const parsed = [];
+    for (let i = 0; i < raw.length; i++) {
+      const r = raw[i];
+      const sH = parseInt(r.startStr.slice(0,2)), sM = parseInt(r.startStr.slice(2,4));
+      const eH = parseInt(r.endStr.slice(0,2)), eM = parseInt(r.endStr.slice(2,4));
+      const now = new Date();
+      const sd = new Date(now); sd.setHours(sH,sM,0,0);
+      const ed = new Date(now); ed.setHours(eH,eM,0,0);
+      if (ed <= sd) ed.setDate(ed.getDate()+1);
+      parsed.push({
+        name: r.name, start: sd, end: ed,
+        startStr: `${String(sH).padStart(2,'0')}:${String(sM).padStart(2,'0')}`,
+        endStr: `${String(eH).padStart(2,'0')}:${String(eM).padStart(2,'0')}`,
+        durationMs: ed - sd
+      });
+    }
+    return parsed;
+  }
+
+  // ====== FORMAT ======
+  function fmt(ms) {
+    if (ms <= 0) return '00:00';
+    const s = Math.ceil(ms/1000), m = Math.floor(s/60);
+    return `${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  }
+
+  // ====== SOUND ======
+  function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  function playAlarmSound() {
+    initAudio();
+    const now = audioCtx.currentTime;
+    for (let c = 0; c < 8; c++) {
+      const base = now + c * 0.5;
+      [0, 0.12, 0.24].forEach(offset => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.frequency.value = 880; osc.type = 'square';
+        gain.gain.setValueAtTime(0.3, base+offset);
+        gain.gain.exponentialRampToValueAtTime(0.01, base+offset+0.1);
+        osc.start(base+offset); osc.stop(base+offset+0.1);
+      });
+    }
+  }
+
+  function playBreathTone(inhale) {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = inhale ? 396 : 528; osc.type = 'sine';
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+1);
+    osc.start(); osc.stop(audioCtx.currentTime+1);
+  }
+
+  function playCompleteTone() {
+    initAudio();
+    const now = audioCtx.currentTime;
+    [523,659,784].forEach((f,i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.frequency.value = f; osc.type = 'sine';
+      gain.gain.setValueAtTime(0.15, now+i*0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now+i*0.15+0.4);
+      osc.start(now+i*0.15); osc.stop(now+i*0.15+0.4);
+    });
+  }
+
+  // ====== SCHEDULE LIST ======
+  function renderScheduleList() {
+    const list = document.getElementById('schedule-list');
+    if (tasks.length === 0) {
+      list.innerHTML = '<div style="color:var(--text-dim);font-size:13px;padding:8px;">Enter a schedule to begin.</div>';
+      return;
+    }
+    list.innerHTML = tasks.map((t, i) => {
+      let cls = 'schedule-item';
+      if (i < currentTaskIndex) cls += ' done';
+      if (i === currentTaskIndex) cls += ' active';
+      return `<div class="${cls}">
+        <span class="schedule-time">${t.startStr}</span>
+        <span class="schedule-name">${escapeHtml(t.name)}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ====== START ======
+  function startSchedule() {
+    const text = document.getElementById('schedule-input').value;
+    const parsed = parseSchedule(text);
+    if (!parsed || parsed.length === 0) return;
+    initAudio();
+    tasks = parsed;
+    document.getElementById('input-screen').style.display = 'none';
+    document.getElementById('timer-screen').style.display = 'flex';
+    renderScheduleList();
+
+    const now = new Date();
+    let startIdx = 0;
+    for (let i = 0; i < tasks.length; i++) {
+      if (now >= tasks[i].end) startIdx = i+1; else break;
+    }
+    if (startIdx >= tasks.length) { showDone(); return; }
+    startTask(startIdx);
+  }
+
+  // ====== START TASK ======
+  function startTask(idx) {
+    if (idx >= tasks.length) { showDone(); return; }
+    currentTaskIndex = idx;
+    const task = tasks[idx];
+    extendedThisTask = false;
+
+    const extBtn = document.getElementById('extend-btn');
+    extBtn.disabled = false; extBtn.textContent = '+10 min';
+
+    document.getElementById('task-name').textContent = task.name;
+    document.getElementById('time-range').textContent = `${task.startStr} → ${task.endStr}`;
+    document.getElementById('timer-screen').style.display = 'flex';
+    document.getElementById('alarm-screen').style.display = 'none';
+    document.title = `⏱ ${task.name}`;
+
+    renderScheduleList();
+    broadcastTask();
+
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimer, 250);
+    updateTimer();
+  }
+
+  // ====== UPDATE TIMER ======
+  function updateTimer() {
+    const task = tasks[currentTaskIndex];
+    const now = new Date();
+    const remaining = task.end - now;
+    const elapsed = now - task.start;
+
+    if (remaining <= 0) { clearInterval(timerInterval); triggerAlarm(); return; }
+
+    const timerEl = document.getElementById('timer-display');
+    timerEl.textContent = fmt(remaining);
+    document.getElementById('progress-fill').style.width = Math.min(100, (elapsed/task.durationMs)*100) + '%';
+
+    timerEl.classList.remove('warning','critical');
+    const rs = remaining/1000;
+    if (rs <= 60) timerEl.classList.add('critical');
+    else if (rs <= 300) timerEl.classList.add('warning');
+
+    document.title = `⏱ ${fmt(remaining)} — ${task.name}`;
+  }
+
+  // ====== EXTEND ======
+  function extendTask() {
+    if (extendedThisTask) return;
+    extendedThisTask = true;
+    const task = tasks[currentTaskIndex];
+    task.end = new Date(task.end.getTime() + 10*60*1000);
+    task.durationMs = task.end - task.start;
+    const eH = task.end.getHours(), eM = task.end.getMinutes();
+    task.endStr = `${String(eH).padStart(2,'0')}:${String(eM).padStart(2,'0')}`;
+    document.getElementById('time-range').textContent = `${task.startStr} → ${task.endStr}`;
+    const btn = document.getElementById('extend-btn');
+    btn.disabled = true; btn.textContent = '+10 min (used)';
+  }
+
+  // ====== DONE EARLY ======
+  function doneEarly() {
+    clearInterval(timerInterval);
+    playCompleteTone();
+    triggerAlarm();
+  }
+
+  // ====== ALARM ======
+  function triggerAlarm() {
+    const task = tasks[currentTaskIndex];
+    const nextTask = currentTaskIndex+1 < tasks.length ? tasks[currentTaskIndex+1] : null;
+
+    document.getElementById('timer-screen').style.display = 'none';
+    const as = document.getElementById('alarm-screen');
+    as.style.display = 'flex';
+    document.getElementById('breathing-container').style.display = 'none';
+
+    document.getElementById('alarm-completed-task').textContent = `✓ ${task.name} — done`;
+    document.getElementById('alarm-next-label').textContent = nextTask ? 'Next up:' : '';
+    document.getElementById('alarm-next-task').textContent = nextTask ? `${nextTask.startStr} ${nextTask.name}` : 'Last task complete!';
+    document.title = '🔴 STOP — ACKNOWLEDGE NOW';
+
+    let flashState = false;
+    alarmInterval = setInterval(() => {
+      flashState = !flashState;
+      as.className = flashState ? 'flash-red' : 'flash-dark';
+    }, 500);
+
+    playAlarmSound();
+    alarmSoundInterval = setInterval(playAlarmSound, 3500);
+
+    const ackC = document.getElementById('acknowledge-container');
+    const ackBtn = document.getElementById('ack-btn');
+    ackC.style.display = 'block';
+    document.getElementById('ack-prompt').innerHTML = 'Stop. You are here.';
+    ackBtn.textContent = "I'm here — stop alarm";
+
+    ackBtn.onclick = () => {
+      clearInterval(alarmInterval);
+      clearInterval(alarmSoundInterval);
+      as.className = 'flash-dark';
+      ackC.style.display = 'none';
+      startBreathing(nextTask);
+    };
+  }
+
+  // ====== BREATHING ======
+  function startBreathing(nextTask) {
+    const container = document.getElementById('breathing-container');
+    const instruction = document.getElementById('breath-instruction');
+    const circle = document.getElementById('breath-circle');
+    const countEl = document.getElementById('breath-count');
+    const skipBtn = document.getElementById('skip-btn');
+
+    container.style.display = 'flex';
+    let breathNum = 0;
+
+    function doBreath() {
+      if (breathNum >= 3) { finishBreathing(nextTask); return; }
+      breathNum++;
+      countEl.textContent = breathNum;
+      instruction.textContent = 'Breathe in...';
+      circle.className = 'breath-circle inhale';
+      playBreathTone(true);
+      setTimeout(() => {
+        instruction.textContent = 'Breathe out...';
+        circle.className = 'breath-circle exhale';
+        playBreathTone(false);
+        setTimeout(doBreath, 4000);
+      }, 4000);
+    }
+
+    instruction.textContent = 'Close your eyes. 3 breaths.';
+    circle.className = 'breath-circle';
+    countEl.textContent = '';
+    setTimeout(doBreath, 2000);
+
+    setTimeout(() => {
+      skipBtn.style.display = 'block';
+      skipBtn.onclick = () => finishBreathing(nextTask);
+    }, 15000);
+  }
+
+  function finishBreathing(nextTask) {
+    document.getElementById('skip-btn').style.display = 'none';
+    document.getElementById('breathing-container').style.display = 'none';
+    if (!nextTask) { showDone(); return; }
+    playCompleteTone();
+    document.getElementById('breath-instruction').textContent = 'Go.';
+    setTimeout(() => startTask(currentTaskIndex+1), 1000);
+  }
+
+  // ====== DONE ======
+  function showDone() {
+    document.getElementById('timer-screen').style.display = 'none';
+    document.getElementById('alarm-screen').style.display = 'none';
+    document.getElementById('done-screen').style.display = 'flex';
+    document.getElementById('done-tasks').textContent = tasks.length;
+    document.getElementById('done-minutes').textContent = Math.round(tasks.reduce((s,t) => s+t.durationMs, 0)/60000);
+    document.title = '✓ All tasks complete';
+    broadcastTask();
+    playCompleteTone();
+  }
+
+  // ====== INIT ======
+  renderDump();
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+</script>
+</body>
+</html>
